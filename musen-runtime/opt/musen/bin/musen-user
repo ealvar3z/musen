@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Purpose: Set user-specific configuration values for Musen.
+
+set -euo pipefail
+
+MUSEN_USER_CONFIG="${MUSEN_USER_CONFIG:-${HOME}/.config/musen/user.json}"
+MUSEN_USER_CONFIG_DIR="${MUSEN_USER_CONFIG%/*}"
+MUSEN_USER_TEMPLATE="/etc/skel/.config/musen/user.json"
+
+mkdir -p "${MUSEN_USER_CONFIG_DIR}"
+
+if [[ ! -e "${MUSEN_USER_CONFIG}" ]]; then
+  if [[ -e "${MUSEN_USER_TEMPLATE}" ]]; then
+    cp "${MUSEN_USER_TEMPLATE}" "${MUSEN_USER_CONFIG}"
+  else
+    cat > "${MUSEN_USER_CONFIG}" <<'JSON'
+{
+  "callsign": "N0CALL",
+  "grid": "DM33",
+  "winlinkPasswd": "NOPASS"
+}
+JSON
+  fi
+fi
+
+current_callsign="$(jq -r '.callsign // "N0CALL"' "${MUSEN_USER_CONFIG}")"
+current_grid="$(jq -r '.grid // "DM33"' "${MUSEN_USER_CONFIG}")"
+current_winlink_passwd="$(jq -r '.winlinkPasswd // "NOPASS"' "${MUSEN_USER_CONFIG}")"
+
+while :; do
+  read -r -e -p "Enter your callsign (current: ${current_callsign}): " callsign
+  read -r -e -p "Enter your maidenhead grid square (current: ${current_grid}): " grid
+  read -r -e -p "Enter your Winlink password: " winlink_passwd
+
+  if [[ -z "${callsign}" ]]; then
+    callsign="${current_callsign}"
+  fi
+
+  if [[ -z "${grid}" ]]; then
+    grid="${current_grid}"
+  fi
+
+  if [[ -z "${winlink_passwd}" ]]; then
+    winlink_passwd="${current_winlink_passwd}"
+  fi
+
+  printf '\nIs the following correct?:\n'
+  printf 'Callsign: %s\n' "${callsign}"
+  printf 'Grid Square: %s\n' "${grid}"
+  printf 'Winlink Password: *******\n'
+  read -r -p "(y/n): " confirm
+
+  case "${confirm}" in
+    [Yy]*)
+      cat > "${MUSEN_USER_CONFIG}" <<JSON
+{
+  "callsign": "${callsign}",
+  "grid": "${grid}",
+  "winlinkPasswd": "${winlink_passwd}"
+}
+JSON
+      printf 'User settings updated...\n'
+      break
+      ;;
+    [Nn]*)
+      printf "Let's try again.\n\n"
+      ;;
+    *)
+      printf "Please enter 'y' or 'n'.\n"
+      ;;
+  esac
+done
+

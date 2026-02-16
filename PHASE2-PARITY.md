@@ -7,11 +7,18 @@ This document maps current ETC runtime behavior to Musen targets and classifies 
 - `optional`: useful but deferred until core path is stable
 - `drop`: not migrated (or replaced with a simpler path)
 
+## Phase 2 Implementation Constraints
+
+- Use Bash builtins and Bash-native features by default (e.g. associative arrays, `mapfile`/`readarray`, stream reads, parameter expansion).
+- Avoid unnecessary subprocesses and command substitutions where builtin shell constructs are sufficient.
+- Prefer single-pass stream processing over pipeline-heavy style when readability and correctness are preserved.
+- Include `gnu parallel` for explicit concurrency orchestration, and use it alongside Bash `coproc` where concurrent control flows are needed.
+
 ## Command Parity
 
 | ETC Command | Current Purpose | Musen Target | Scope | Notes |
 |---|---|---|---|---|
-| `et-common` | shared vars/functions (`/dev/et-*`, service wait, download retries) | `musen-common` | core | Foundation for all wrappers |
+| `et-common` | shared vars/functions (`/dev/s6-*`, service wait, download retries) | `musen-common` | core | Foundation for all wrappers |
 | `et-log` | logging helper | `musen-log` | core | Keep simple stdout + log file behavior |
 | `et-radio` | active radio selection + operator notes | `musen-radio` | core | Keep active-radio symlink model |
 | `et-mode` | mode/menu orchestration | `musen-mode` | core | Primary operator workflow |
@@ -95,4 +102,3 @@ This document maps current ETC runtime behavior to Musen targets and classifies 
 - GNOME-specific UX helpers (`et-term`, GNOME tuning scripts).
 - Conky/autostart desktop telemetry path.
 - Heavy GIS/SDR/map stacks in first deliverable.
-

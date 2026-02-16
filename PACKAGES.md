@@ -20,6 +20,7 @@ Minimal UI:
 
 Core runtime utilities:
 - bash
+- parallel
 - coreutils
 - grep
 - sed
@@ -72,3 +73,7 @@ Candidate packages:
 - Prefer official Arch repositories.
 - Use curated AUR only where necessary.
 - Build local packages for items not suitable for direct AUR/repo consumption.
+
+## Shell/Runtime Policy
+- Prefer Bash builtins and Bash-native constructs over unnecessary subprocesses.
+- Use `gnu parallel` and Bash `coproc` for controlled concurrency where needed.

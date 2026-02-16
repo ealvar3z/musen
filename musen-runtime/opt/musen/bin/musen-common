@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# Purpose: Shared environment variables and helper functions.
+
+set -o pipefail
+
+export MUSEN_DEVICE_AUDIO="/dev/s6-audio"
+export MUSEN_DEVICE_CAT="/dev/s6-cat"
+export MUSEN_DEVICE_GPS="/dev/s6-gps"
+export MUSEN_DEVICE_SDR="/dev/s6-sdr"
+
+export MUSEN_HOME="/opt/musen"
+export MUSEN_ACTIVE_RADIO_CONF="${MUSEN_HOME}/conf/radios.d/active-radio.json"
+
+export ESC=$'\x1B'
+export RED="${ESC}[1;31m"
+export BLUE="${ESC}[1;34m"
+export GREEN="${ESC}[1;32m"
+export WHITE="${ESC}[97m"
+export YELLOW="${ESC}[1;33m"
+export NC="${ESC}[0m"
+
+musen_log() {
+  if command -v musen-log >/dev/null 2>&1; then
+    musen-log "$@"
+  else
+    printf '%s\n' "$*"
+  fi
+}
+
+show_err_dialog() {
+  local message="$1"
+  if command -v dialog >/dev/null 2>&1; then
+    dialog --title "Notification" --msgbox "${message}" 8 60
+  else
+    printf '%s\n' "${message}" >&2
+  fi
+}
+
+notify_user() {
+  local message="$1"
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -t 5000 --app-name="Musen" "${message}"
+  fi
+}
+
+exit_if_no_sdr() {
+  if [[ ! -e "${MUSEN_DEVICE_SDR}" ]]; then
+    musen_log "No ${MUSEN_DEVICE_SDR} detected."
+    exit 1
+  fi
+}
+
+exit_on_service_failure() {
+  local unit_name="$1"
+  if ! systemctl is-active --user --quiet "${unit_name}"; then
+    musen_log "Can't start mode. ${unit_name} failed to start."
+    exit 1
+  fi
+}
+
+start_and_wait_for_service() {
+  local unit_name="$1"
+  local timeout=15
+  local interval=2
+  local elapsed=0
+
+  musen_log "Starting ${unit_name}..."
+  systemctl --user start "${unit_name}"
+
+  musen_log "Waiting for ${unit_name} to become active..."
+  while ! systemctl is-active --user --quiet "${unit_name}"; do
+    sleep "${interval}"
+    elapsed=$((elapsed + interval))
+    if (( elapsed >= timeout )); then
+      musen_log "Timeout reached. ${unit_name} failed to start."
+      exit 1
+    fi
+    musen_log "Waiting for ${unit_name} to become active..."
+  done
+
+  sleep 2
+  exit_on_service_failure "${unit_name}"
+}
+
+download_with_retries() {
+  local url="${1:-}"
+  local filename="${2:-}"
+  local checksum="${3:-}"
+  local max_retries="${4:-3}"
+  local wait_seconds="${5:-2}"
+  local i=0
+
+  if [[ -z "${url}" || -z "${filename}" ]]; then
+    printf 'Usage: download_with_retries <url> <filename> [checksum] [max_retries] [wait_seconds]\n'
+    return 1
+  fi
+
+  for ((i=1; i<=max_retries; i++)); do
+    printf 'Attempt %d of %d to download %s...\n' "${i}" "${max_retries}" "${url}"
+    if curl -L -f -o "${filename}" "${url}"; then
+      printf 'Download successful: %s\n' "${filename}"
+
+      if [[ -z "${checksum}" ]]; then
+        return 0
+      fi
+
+      printf 'Verifying checksum...\n'
+      file_checksum="$(sha256sum "${filename}")"
+      file_checksum="${file_checksum%% *}"
+
+      if [[ "${file_checksum}" == "${checksum}" ]]; then
+        printf 'Checksum OK\n'
+        return 0
+      fi
+
+      printf 'Checksum mismatch (expected %s, got %s)\n' "${checksum}" "${file_checksum}"
+      rm -f "${filename}"
+    else
+      printf 'Download failed (attempt %d).\n' "${i}"
+    fi
+    sleep "${wait_seconds}"
+  done
+
+  printf 'Download failed after %d attempts.\n' "${max_retries}"
+  return 1
+}
+
+prime_rigctld_conn() {
+  local prime_rig=""
+
+  if [[ ! -e "${MUSEN_ACTIVE_RADIO_CONF}" ]]; then
+    return 0
+  fi
+
+  prime_rig="$(jq -r -e '.rigctrl.primeRig' "${MUSEN_ACTIVE_RADIO_CONF}" 2>/dev/null || true)"
+  if [[ "${prime_rig}" == "true" ]]; then
+    musen_log "Priming rig control client connection"
+    notify_user "Please be patient. Priming connection to radio."
+    rigctl -m 2 f >/dev/null
+  else
+    musen_log "No rigctld priming needed"
+  fi
+}

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Purpose: Log message to stdout and to a local runtime log file.
+
+set -euo pipefail
+
+MUSEN_TEMP_DIR="/tmp/musen"
+MUSEN_LOG_FILE="${MUSEN_TEMP_DIR}/musen.log"
+
+mkdir -p "${MUSEN_TEMP_DIR}"
+chmod 755 "${MUSEN_TEMP_DIR}"
+
+if [[ ! -e "${MUSEN_LOG_FILE}" ]]; then
+  : > "${MUSEN_LOG_FILE}"
+  chmod 666 "${MUSEN_LOG_FILE}"
+fi
+
+if (( $# == 0 )); then
+  printf 'Usage: %s <msg>\n\n' "$(basename "$0")"
+  printf 'All messages written to: %s\n' "${MUSEN_LOG_FILE}"
+  exit 1
+fi
+
+timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+message="$*"
+
+printf '%b\n' "${message}"
+printf '%s %s\n' "${timestamp}" "${message}" >> "${MUSEN_LOG_FILE}"
+

@@ -1,0 +1,252 @@
+#!/usr/bin/env bash
+# Purpose: Display Musen runtime system state.
+
+set -euo pipefail
+
+MUSEN_HOME="${MUSEN_HOME:-/opt/musen}"
+MUSEN_USER_CONFIG="${MUSEN_USER_CONFIG:-${HOME}/.config/musen/user.json}"
+MUSEN_MODE_FILE="${MUSEN_MODE_FILE:-${HOME}/.config/musen/mode}"
+
+usage() {
+  cat <<'USAGE'
+Usage: musen-system-info <command>
+  active-radio  - Display model of active radio
+  callsign      - Current callsign
+  grid          - Current grid square from user config
+  s6-audio      - Show state of audio interface
+  s6-audio-card - Display audio card and device: <card>,<device>
+  s6-cat        - Show state of CAT control interface
+  s6-gps        - Show state of GPS interface
+  s6-mode       - Show current mode
+  s6-sdr        - Show state of SDR interface
+  s6-time       - Show if time is synchronized via GPS
+  ip            - System IP address
+  release       - Distribution release
+USAGE
+}
+
+if (( $# != 1 )); then
+  usage
+  exit 1
+fi
+
+read_json_value() {
+  local file_path="$1"
+  local query="$2"
+  local fallback="$3"
+  local result=""
+
+  if [[ -e "${file_path}" ]]; then
+    result="$(jq -r "${query} // empty" "${file_path}" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "${result}" ]]; then
+    printf '%s\n' "${fallback}"
+  else
+    printf '%s\n' "${result}"
+  fi
+}
+
+active_radio_model() {
+  local active_radio_conf="${MUSEN_HOME}/conf/radios.d/active-radio.json"
+  if [[ -L "${active_radio_conf}" || -e "${active_radio_conf}" ]]; then
+    read_json_value "${active_radio_conf}" '.model' "Unknown"
+  else
+    printf 'No radio selected\n'
+  fi
+}
+
+audio_state() {
+  local udev_out=""
+  local s6_device=""
+
+  if [[ ! -e /dev/s6-audio ]]; then
+    printf 'Not connected\n'
+    return
+  fi
+
+  udev_out="$(udevadm info /dev/s6-audio 2>/dev/null | grep -m1 'S6_DEVICE=' || true)"
+  if [[ -z "${udev_out}" ]]; then
+    printf 'Connected\n'
+    return
+  fi
+
+  s6_device="${udev_out#*=}"
+  case "${s6_device}" in
+    DIGIRIG_LITE) printf 'DigiRig Lite\n' ;;
+    DIGIRIG_MOBILE) printf 'DigiRig Mobile\n' ;;
+    *) printf '%s\n' "${s6_device}" ;;
+  esac
+}
+
+audio_card_device() {
+  local arecord_out=""
+  local card=""
+  local device=""
+
+  if [[ ! -e /dev/s6-audio ]]; then
+    return 1
+  fi
+
+  arecord_out="$(arecord -l 2>/dev/null | grep -m1 'S6_AUDIO' || true)"
+  if [[ -z "${arecord_out}" ]]; then
+    return 1
+  fi
+
+  card="${arecord_out#*card }"
+  card="${card%%:*}"
+  device="${arecord_out#*device }"
+  device="${device%%:*}"
+  printf '%s,%s\n' "${card}" "${device}"
+}
+
+cat_state() {
+  local active_radio_conf="${MUSEN_HOME}/conf/radios.d/active-radio.json"
+
+  if [[ ! -L "${active_radio_conf}" && ! -e "${active_radio_conf}" ]]; then
+    printf 'N/A\n'
+    return
+  fi
+
+  if [[ ! -e /dev/s6-cat ]]; then
+    printf 'Not connected\n'
+    return
+  fi
+
+  if systemctl status rigctld --no-pager >/dev/null 2>&1; then
+    printf 'Connected\n'
+  else
+    printf 'Connected. No rig control\n'
+  fi
+}
+
+gps_state() {
+  local gps_json=""
+  local gps_mode=""
+  local lat=""
+  local lon=""
+
+  if [[ ! -e /dev/s6-gps ]]; then
+    printf 'Not connected\n'
+    return
+  fi
+
+  if ! systemctl status gpsd --no-pager >/dev/null 2>&1; then
+    printf 'Connected. gpsd not running\n'
+    return
+  fi
+
+  gps_json="$(gpspipe -w -n 10 2>/dev/null | grep -m1 'TPV' || true)"
+  if [[ -z "${gps_json}" ]]; then
+    printf 'Connected. Cannot decode\n'
+    return
+  fi
+
+  gps_mode="$(jq -r '.mode // 0' <<< "${gps_json}" 2>/dev/null || printf '0')"
+  case "${gps_mode}" in
+    1) printf 'No fix\n' ;;
+    2) printf '2D fix\n' ;;
+    3)
+      lat="$(jq -r '.lat // empty' <<< "${gps_json}" 2>/dev/null || true)"
+      lon="$(jq -r '.lon // empty' <<< "${gps_json}" 2>/dev/null || true)"
+      if [[ -n "${lat}" && -n "${lon}" ]]; then
+        printf '%.5f,%.5f\n' "${lat}" "${lon}"
+      else
+        printf '3D fix\n'
+      fi
+      ;;
+    *) printf 'Unknown mode\n' ;;
+  esac
+}
+
+mode_state() {
+  local mode=""
+  if [[ ! -e "${MUSEN_MODE_FILE}" ]]; then
+    printf "Run 'musen-mode' to set\n"
+    return
+  fi
+
+  IFS= read -r mode < "${MUSEN_MODE_FILE}" || mode="none"
+
+  case "${mode}" in
+    none) printf "Run 'musen-mode' to set\n" ;;
+    aprs-digipeater) printf 'APRS Digipeater\n' ;;
+    aprs-client) printf 'APRS\n' ;;
+    bbs-client|bbs-client2) printf 'BBS Client\n' ;;
+    bbs-server) printf 'BBS Server\n' ;;
+    chat-chattervox) printf 'Chat (chattervox)\n' ;;
+    packet-digipeater) printf 'Packet Digipeater\n' ;;
+    winlink-ardop) printf 'Winlink ARDOP\n' ;;
+    winlink-packet) printf 'Winlink Packet\n' ;;
+    winlink-vara-fm) printf 'Winlink VARA FM\n' ;;
+    winlink-vara-hf) printf 'Winlink VARA HF\n' ;;
+    *) printf 'Unknown\n' ;;
+  esac
+}
+
+time_state() {
+  local tracking_out=""
+  if [[ ! -e /dev/s6-gps ]]; then
+    printf 'No\n'
+    return
+  fi
+  tracking_out="$(chronyc tracking 2>/dev/null | grep -m1 'NMEA' || true)"
+  if [[ -n "${tracking_out}" ]]; then
+    printf 'Yes\n'
+  else
+    printf 'No\n'
+  fi
+}
+
+case "$1" in
+  active-radio)
+    active_radio_model
+    ;;
+  callsign)
+    read_json_value "${MUSEN_USER_CONFIG}" '.callsign' "N0CALL"
+    ;;
+  grid)
+    read_json_value "${MUSEN_USER_CONFIG}" '.grid' "DM33"
+    ;;
+  s6-audio)
+    audio_state
+    ;;
+  s6-audio-card)
+    audio_card_device
+    ;;
+  s6-cat)
+    cat_state
+    ;;
+  s6-gps)
+    gps_state
+    ;;
+  s6-mode)
+    mode_state
+    ;;
+  s6-sdr)
+    if [[ -e /dev/s6-sdr ]]; then
+      printf 'Connected\n'
+    else
+      printf 'Not connected\n'
+    fi
+    ;;
+  s6-time)
+    time_state
+    ;;
+  ip)
+    hostname -I | awk '{print $1}'
+    ;;
+  release)
+    if [[ -e /etc/os-release ]]; then
+      . /etc/os-release
+      printf '%s\n' "${PRETTY_NAME:-unknown}"
+    else
+      printf 'unknown\n'
+    fi
+    ;;
+  *)
+    printf 'Command not supported.\n'
+    usage
+    exit 1
+    ;;
+esac

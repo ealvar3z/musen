@@ -29,6 +29,7 @@ This document tracks the phased migration from the current Ubuntu-based EmComm T
   - [x] `core` (required for first usable ISO)
   - [x] `optional` (deferred modules)
   - [x] `drop` (intentionally removed)
+- [x] Document implementation constraints for runtime scripts (Bash builtins-first, `gnu parallel` + `coproc` strategy).
 
 ## Phase 3: Minimal Arch ISO Base
 - [x] Create `archiso` profile for `musen-core`.
