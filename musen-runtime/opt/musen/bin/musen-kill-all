@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Purpose: Stop Musen communication services to ensure a clean mode switch.
+
+set -euo pipefail
+
+stop_unit_if_exists() {
+  local unit_name="$1"
+  if systemctl --user list-unit-files "${unit_name}" >/dev/null 2>&1; then
+    systemctl --user stop "${unit_name}" >/dev/null 2>&1 || true
+  fi
+}
+
+stop_pat() {
+  local pid_list=""
+  pid_list="$(pgrep -f "pat http" || true)"
+  if [[ -n "${pid_list}" ]]; then
+    while IFS= read -r pid; do
+      [[ -n "${pid}" ]] && kill -9 "${pid}" >/dev/null 2>&1 || true
+    done <<< "${pid_list}"
+  fi
+}
+
+musen-log "Stopping all Musen services"
+
+stop_unit_if_exists "musen-service-winlink-ardop.service"
+stop_unit_if_exists "musen-service-winlink-packet.service"
+stop_unit_if_exists "musen-service-winlink-native-packet.service"
+stop_unit_if_exists "musen-service-ardop.service"
+stop_unit_if_exists "musen-service-direwolf-300.service"
+stop_unit_if_exists "musen-service-direwolf-9600.service"
+stop_unit_if_exists "musen-service-direwolf-simple.service"
+stop_unit_if_exists "musen-service-direwolf-aprs-digipeater.service"
+stop_unit_if_exists "musen-service-direwolf-packet-digipeater.service"
+
+pkill musen-winlink >/dev/null 2>&1 || true
+pkill musen-vara >/dev/null 2>&1 || true
+pkill VARA >/dev/null 2>&1 || true
+
+stop_pat
+
