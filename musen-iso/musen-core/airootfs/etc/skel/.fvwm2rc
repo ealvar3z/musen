@@ -1,0 +1,11 @@
+# Musen FVWM minimal monochrome theme
+
+Style * ForeColor white, BackColor black
+Style "Hint" ForeColor gray, BackColor black
+
+AddToMenu MainMenu "Musen"
++ "Terminal" Exec exec xterm
++ "Restart FVWM" Restart
++ "Exit" Quit
+
+Mouse 1 R A Menu MainMenu Nop

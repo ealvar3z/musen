@@ -1,0 +1,12 @@
+! Musen monochrome defaults
+*background: #000000
+*foreground: #ffffff
+*cursorColor: #b0b0b0
+
+xterm*background: #000000
+xterm*foreground: #ffffff
+xterm*cursorColor: #b0b0b0
+xterm*color0:  #000000
+xterm*color7:  #ffffff
+xterm*color8:  #808080
+xterm*color15: #ffffff

@@ -1,0 +1,54 @@
+# Mandatory archiso boot image packages
+mkinitcpio
+mkinitcpio-archiso
+
+# Base system
+base
+linux
+linux-firmware
+systemd
+
+# Minimal UI stack
+xorg-server
+xorg-xinit
+xorg-xsetroot
+xorg-xrandr
+xorg-xinput
+fvwm
+xterm
+
+# Runtime essentials
+bash
+coreutils
+grep
+sed
+gawk
+findutils
+procps-ng
+util-linux
+less
+which
+
+# Operational/network
+networkmanager
+openssh
+sudo
+iproute2
+curl
+wget
+vim
+
+# Radio foundations
+hamlib
+direwolf
+ax25-tools
+ax25-apps
+gpsd
+chrony
+alsa-utils
+jq
+dialog
+expect
+socat
+bluez
+bluez-utils
