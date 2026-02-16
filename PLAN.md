@@ -23,12 +23,12 @@ This document tracks the phased migration from the current Ubuntu-based EmComm T
 - [ ] Start from `baseline` profile for minimum footprint and only add what musen requires.
 
 ## Phase 2: Feature Parity Mapping
-- [ ] Inventory current runtime flows from ETC (`et-radio`, `et-mode`, wrappers, services).
-- [ ] Build parity matrix (current behavior -> musen target behavior).
-- [ ] Tag each feature as:
-  - [ ] `core` (required for first usable ISO)
-  - [ ] `optional` (deferred modules)
-  - [ ] `drop` (intentionally removed)
+- [x] Inventory current runtime flows from ETC (`et-radio`, `et-mode`, wrappers, services).
+- [x] Build parity matrix (current behavior -> musen target behavior).
+- [x] Tag each feature as:
+  - [x] `core` (required for first usable ISO)
+  - [x] `optional` (deferred modules)
+  - [x] `drop` (intentionally removed)
 
 ## Phase 3: Minimal Arch ISO Base
 - [x] Create `archiso` profile for `musen-core`.
